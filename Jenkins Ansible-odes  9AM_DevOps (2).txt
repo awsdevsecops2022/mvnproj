@@ -1,0 +1,188 @@
+
+                                             Jenkins-Ansible Intetgration
+                                            ------------------------------------------  
+ Step-A:   create two diff. servers
+                       1. Jenkins
+                       2. Ansible Master , Nodes
+
+ Step-B:   configure SSH (Secure Shell) for Jenkins and Ansible Master
+ 
+ Step-1:  to change root password : 
+------------------------------------------------
+               Ansible# passwd  root
+       Enter new passwd :  root
+
+ Step-2:  to configure ssh: 
+------------------------------------
+               Ansible# vi /etc/ssh/sshd_config
+        [press 'i' for insert mode]
+	PermitRootLogin   yes
+	PasswordAuthentication   yes
+        [press 'Esc']
+        [:wq  ---> write and quit]
+
+
+ Step-3: to restart ssh service:
+ -----------------------------------------
+              Ansible# service ssh restart         (for Ubuntu nodes)
+                                  [OR]
+              Ansible# systemctl restart sshd   (for Redhat nodes)
+
+
+ Step-4: to Connect with Nodes:
+----------------------------------------------
+              Ansible# hostname  -i         (to get an IP-Address)
+             [OR]  # ifconfig      
+             [OR]  # ip  a  
+
+              Ansible#  curl  inconfig.me   (to get public IP-Address)
+                 [OR]  #  curl  ifconfig.in      
+        
+
+              Ansible# hostname  -f         (to get a Host Name / FQDN)
+  
+             Jenkins#  ssh  <Ansible Master-IP>
+           
+
+                  Password less Authentication  (SSH-Keys)
+                 -------------------------------------------------------------
+ Step-1:  to generate a Key-pair
+------------------------------------------
+             Jenkins#  ls  -a          (to list hidden files)
+             Jenkins#  cd .ssh   
+             Jenkins#  ssh-keygen
+             Jenkins#  ls
+             id_rsa          (private key)
+             id_rsa.pub   (public key)
+
+ Step-2:  to send public key to nodes
+----------------------------------------------------
+            Jenkins#  ssh-copy-id   <node IP Address>
+
+ Step-3: to Connect with Nodes:
+----------------------------------------------
+              Jenkins#  ssh  <node IP>
+           
+
+ Step-C:   install & configure "Publish Over SSH" plugin in Jenkins
+        Manage Jenkins --> Configure System --> select "Publish over SSH"
+
+                        Key:  copy and Add private key 
+                     Name:  Ansible_Master
+                      Host:  35.192.36.37
+              username:  root
+
+                   select --> "Test Configuration"  --> Apply --> save
+
+ Step-D:   create a new Jenkins Build  --> Maven-Project
+
+                    Build stages:   clean  compile  package
+                   /root/.jenkins/workspace/maven-project/target/myproj.war
+
+ Step-E:   send Artifact (.war) to Ansible Master
+
+                 Maven-Project  --> Configure --> Post Build Actions  --> 
+                   select "Send Build Artifacts over SSH"
+
+                             Source File :   target/myproj.war       (Jenkins)
+                    Remote Directory:   //opt/                            (Ansible)
+
+
+ Step-F:   create an Ansible Playbook
+
+root@ansible-mstr:~# cat playbooks/pb1.yml
+---
+- hosts: all
+  remote_user: root
+  gather_facts: false
+  vars:
+  - pack1: openjdk-8-jdk
+  - pack2: tomcat9
+  tasks:
+  - name: to install {{pack1}}
+    apt: name={{pack1}} update_cache=yes state=present
+
+  - name: to install {{pack2}}
+    apt: name={{pack2}} update_cache=yes state=present
+    notify:
+    - start tomcat
+
+  - name: to deploy a file
+    copy:
+      src: /opt/test/myproj.war
+      dest: /var/lib/tomcat9/webapps/myproj.war
+
+  handlers:
+  - name: start tomcat
+    service: name=tomcat9 state=started
+
+
+ Step-G:   run an Ansible Job (playbook)
+
+                 Maven-Project  --> Configure --> Add Server
+
+                 Execute Command --> "ansible-playbook /root/playbooks/pb1.yml"
+                
+
+
+                                         Jenkins-Docker Integration
+                                         ---------------------------------------
+
+Step-1:Create a new Account for Docker Hub
+            Install Docker on Jenkins host
+
+  # curl -fsSL https://get.docker.com -o get-docker.sh
+  # sh get-docker.sh
+
+
+Step-2: Create a Dockerfile in Git Hub repository
+  # git clone https://github.com/sathyadevops/mvnproj.git
+ 
+https://github.com/sathyadevops/mvnproj.git
+
+# cat Dockerfile
+FROM tomcat:8.0
+COPY target/myproj.war /usr/local/tomcat/webapps/myproj.war
+ENV JAVA_HOME=/usr/bin/java
+WORKDIR /usr/local/tomcat/webapps
+USER  root
+EXPOSE 8080
+CMD ['catalina.sh','run']
+
+
+Step-3) Install the following Docker Plugins
+     # Docker
+     # Docker Build step
+     # cloudbees Docker Build and Publish
+
+
+Step-4) Jenkins  --> add Item --> Docker Project 
+      docker login :  uid & pwd
+
+     Build set-up  --> docker build & publish 
+
+Repository Name: sathyadevops/mvnproj
+    add --> repository creds.
+
+  --->select "Build now"
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+        
+
+
+
+
+
+
